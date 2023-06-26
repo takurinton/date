@@ -4,15 +4,18 @@ type Sections = {
   start: number;
   end: number;
   value: string;
+  editable: boolean;
 };
 
 /**
  * 何らかのフォーマットで入ってくる日付を開始位置と終了位置と値を持つセクションに分割する
  * useDateField で format された日付操作を汎用的に行うために必要なプロパティを返す
  * 例) 2023-01-02 -> [
- *   { start: 0, end: 3, value: "2023" },
- *   { start: 5, end: 6, value: "01" },
- *   { start: 8, end: 9, value: "02"}
+ *   { start: 0, end: 3, value: "2023", editable: true },
+ *   { start: 4, end: 4, value: "-", editable: false },
+ *   { start: 5, end: 6, value: "01", editable: true },
+ *   { start: 7, end: 7, value: "-", editable: false },
+ *   { start: 8, end: 9, value: "02", editable: true }
  * ]
  *
  * @param formattedDate 何らかのフォーマットで入ってくる日付
@@ -21,20 +24,24 @@ type Sections = {
 export const getSections = (formattedDate: string) => {
   const sections: Sections[] = [];
   let start = 0;
+  let isPrevCharDigit = !isNaN(Number(formattedDate[0]));
 
-  for (let index = 0; index <= formattedDate.length; index++) {
+  for (let index = 1; index <= formattedDate.length; index++) {
     const currentChar = formattedDate[index];
+    const isCurrentCharDigit = !isNaN(Number(currentChar));
 
-    // if currentChar is non-digit or end of string
-    if (isNaN(Number(currentChar)) || index === formattedDate.length) {
-      if (index > start) {
-        sections.push({
-          start,
-          end: index - 1,
-          value: formattedDate.slice(start, index),
-        });
-      }
-      start = index + 1;
+    if (
+      isCurrentCharDigit !== isPrevCharDigit ||
+      index === formattedDate.length
+    ) {
+      sections.push({
+        start,
+        end: index - 1,
+        value: formattedDate.slice(start, index),
+        editable: isPrevCharDigit,
+      });
+      start = index;
+      isPrevCharDigit = isCurrentCharDigit;
     }
   }
 

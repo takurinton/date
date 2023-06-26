@@ -3,6 +3,7 @@ import dayjs, { Dayjs } from "dayjs";
 import { getSections } from "./utils";
 import { AllowedKeys, allowedKeys, numberKeys } from "./constants";
 
+// https://day.js.org/docs/en/plugin/custom-parse-format
 import customParseFormat from "dayjs/plugin/customParseFormat";
 
 type Props = {
@@ -15,22 +16,34 @@ type Props = {
  * 指定された format で日付を表示・操作するための hooks
  * 左右キーでセクション移動、上下キーで選択中のセクションの値を増減する
  * 直接キーボード入力することもできる
+ *
+ * @todo 日付をコピペした時にそれをフォーマットして反映する
+ * @todo リファクタする、特に sections の扱いと状態管理
+ * @todo テスト書く
  */
 export const useDateField = ({
   date,
   format = "YYYY-MM-DD",
   onDateChange,
 }: Props) => {
+  // dayjs では 00-00-2020 のようなことをすると invalid date になる
+  // dayjs() の第二引数のフォーマットを指定するとそれに沿ってパースしてくれるプラグイン
   dayjs.extend(customParseFormat);
 
   const ref = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(date.format(format));
-  const sections = useMemo(() => getSections(value), [value]);
+  const sectionsWithCharactor = useMemo(() => getSections(value), [value]);
+  const sections = useMemo(
+    () => sectionsWithCharactor.filter((section) => section.editable),
+    [sectionsWithCharactor]
+  );
   const [placement, setPlacement] = useState({
     start: 0,
     end: sections.length - 1,
     current: 0,
   });
+
+  const [keyDownCount, setKeyDownCount] = useState(0);
 
   const setCurrent = useCallback(() => {
     setTimeout(() => {
@@ -81,6 +94,7 @@ export const useDateField = ({
         return;
       }
 
+      // 左右キーでセクションを移動する
       // TODO: Tab and Tab + Command
       // ブラウザ間の差分吸収がめんどくさいので一旦保留
       if (
@@ -104,6 +118,12 @@ export const useDateField = ({
         });
       }
 
+      // 上下キーで値を増減する
+      // MEMO: 2020年00月01日 のような表記は
+      // https://day.js.org/docs/en/plugin/custom-parse-format
+      // の挙動が怪しいので一旦対応しない
+      // e.g.) 2020-00-01 -> 2020-01-01 になる
+      // 本来の dayjs の挙動としては 2019-12-01 になるべき
       if (
         event.key === AllowedKeys.ArrowUp ||
         event.key === AllowedKeys.ArrowDown
@@ -113,53 +133,55 @@ export const useDateField = ({
         const newValue = String(
           Number(sections[placement.current].value) + i
         ).padStart(sections[placement.current].value.length, "0");
-        const _sections = sections.map((section, index) => {
-          if (index !== placement.current) {
-            return section;
-          }
 
-          return {
-            ...section,
-            value: newValue.toString(),
-          };
-        });
-
-        const newDate = dayjs(
-          `${_sections.map((section) => section.value).join("-")}`,
-          format
-        );
-
-        // 1月32日を入力したら 2月1日になるようにするか検討
-        // ここで弾いてるので今はならない
-        if (!newDate.isValid()) {
-          return;
-        }
-
-        setValue(newDate.format(format));
         sections[placement.current].value = newValue;
       }
 
-      // TODO: 月末とか考慮する
+      // 数字を直接入力した時の挙動
       if (numberKeys.includes(event.key)) {
         event.preventDefault();
-        const currentValue = sections[placement.current].value;
-        const newValue = `${currentValue.slice(1)}${event.key}`;
+        if (keyDownCount === 0) {
+          sections[placement.current].value = "".padStart(
+            sections[placement.current].value.length,
+            "0"
+          );
+        }
+
+        const newValue = `${sections[placement.current].value.slice(1)}${
+          event.key
+        }`;
         sections[placement.current].value = newValue;
+
+        setKeyDownCount(keyDownCount + 1);
       }
 
-      const newDate = dayjs(
-        `${sections.map((section) => section.value).join("-")}`,
-        format
-      );
+      // そのセクションで入力が完了したら keydown をリセットする
+      if (keyDownCount + 1 === sections[placement.current].value.length) {
+        setKeyDownCount(0);
 
-      setValue(newDate.format(format));
+        // 入力が完了したら次のセクションに移動する
+        // MEMO: 一旦保留
+        // if (placement.current + 1 < sections.length) {
+        //   setPlacement((prev) => ({
+        //     ...prev,
+        //     current: prev.current + 1,
+        //   }));
+        // }
+      }
+
+      // 日付の更新
+      const v = sectionsWithCharactor.map((section) => section.value).join("");
+      const newDate = dayjs(v, format);
 
       if (!newDate.isValid()) {
+        console.error("invalid date");
         return;
       }
 
+      setValue(newDate.format(format));
       onDateChange && onDateChange(newDate);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [sections, format, onDateChange, placement]
   );
 
@@ -172,6 +194,8 @@ export const useDateField = ({
       sections[placement.current].start,
       sections[placement.current].end + 1
     );
+    // セクションを移動したら keydown をリセットする
+    setKeyDownCount(0);
   }, [placement, sections]);
 
   // MEMO: playground のデバッグ用、後で消す
