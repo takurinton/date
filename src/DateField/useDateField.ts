@@ -135,11 +135,20 @@ export const useDateField = ({
         ).padStart(sections[placement.current].value.length, "0");
 
         sections[placement.current].value = newValue;
+
+        const newDate = dayjs(
+          sectionsWithCharactor.map((section) => section.value).join(""),
+          format
+        );
+
+        setValue(newDate.format(format));
+        onDateChange && onDateChange(newDate);
       }
 
       // 数字を直接入力した時の挙動
       if (numberKeys.includes(event.key)) {
         event.preventDefault();
+
         if (keyDownCount === 0) {
           sections[placement.current].value = "".padStart(
             sections[placement.current].value.length,
@@ -153,33 +162,41 @@ export const useDateField = ({
         sections[placement.current].value = newValue;
 
         setKeyDownCount(keyDownCount + 1);
+
+        // そのセクションで入力が完了したら keydown をリセットする
+        if (keyDownCount + 1 === sections[placement.current].value.length) {
+          setKeyDownCount(0);
+
+          // 入力が完了したら次のセクションに移動する
+          // MEMO: 一旦保留
+          // if (placement.current + 1 < sections.length) {
+          //   setPlacement((prev) => ({
+          //     ...prev,
+          //     current: prev.current + 1,
+          //   }));
+          // }
+
+          const v = sectionsWithCharactor
+            .map((section) => section.value)
+            .join("");
+          const newDate = dayjs(v, format);
+
+          if (!newDate.isValid()) {
+            console.error("invalid date");
+            return;
+          }
+
+          setValue(newDate.format(format));
+          onDateChange && onDateChange(newDate);
+        } else {
+          // 日付の更新
+          const v = sectionsWithCharactor
+            .map((section) => section.value)
+            .join("");
+          setValue(v);
+          onDateChange && onDateChange(dayjs(v, format));
+        }
       }
-
-      // そのセクションで入力が完了したら keydown をリセットする
-      if (keyDownCount + 1 === sections[placement.current].value.length) {
-        setKeyDownCount(0);
-
-        // 入力が完了したら次のセクションに移動する
-        // MEMO: 一旦保留
-        // if (placement.current + 1 < sections.length) {
-        //   setPlacement((prev) => ({
-        //     ...prev,
-        //     current: prev.current + 1,
-        //   }));
-        // }
-      }
-
-      // 日付の更新
-      const v = sectionsWithCharactor.map((section) => section.value).join("");
-      const newDate = dayjs(v, format);
-
-      if (!newDate.isValid()) {
-        console.error("invalid date");
-        return;
-      }
-
-      setValue(newDate.format(format));
-      onDateChange && onDateChange(newDate);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [sections, format, onDateChange, placement]
