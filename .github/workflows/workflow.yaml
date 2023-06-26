@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: pnpm/action-setup@v2.2.2
+        with:
+          version: 8
+      - name: install
+        run: pnpm install
+
+      - name: lint
+        run: pnpm lint
+
+      - name: test
+        run: pnpm test
