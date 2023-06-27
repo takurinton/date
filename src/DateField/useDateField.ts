@@ -206,6 +206,24 @@ export const useDateField = ({
     setCurrent();
   }, [setCurrent]);
 
+  const onPaste = useCallback(
+    (event: React.ClipboardEvent<HTMLInputElement>) => {
+      event.preventDefault();
+
+      const pastedText = event.clipboardData.getData("text");
+      const newDate = dayjs(pastedText);
+
+      if (!newDate.isValid()) {
+        console.error("invalid date");
+        return;
+      }
+
+      setValue(newDate.format(format));
+      onDateChange && onDateChange(newDate);
+    },
+    [format, onDateChange]
+  );
+
   useEffect(() => {
     ref.current?.setSelectionRange(
       sections[placement.current].start,
@@ -228,5 +246,6 @@ export const useDateField = ({
     onBlur,
     onKeyDown,
     onMouseDown,
+    onPaste,
   };
 };
