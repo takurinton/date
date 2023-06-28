@@ -17,9 +17,7 @@ type Props = {
  * 左右キーでセクション移動、上下キーで選択中のセクションの値を増減する
  * 直接キーボード入力することもできる
  *
- * @todo 日付をコピペした時にそれをフォーマットして反映する
  * @todo リファクタする、特に sections の扱いと状態管理
- * @todo テスト書く
  */
 export const useDateField = ({
   date,
@@ -86,6 +84,7 @@ export const useDateField = ({
       ...prev,
       current: 0,
     }));
+    setKeyDownCount(0);
   }, []);
 
   const onKeyDown = useCallback(
@@ -96,7 +95,7 @@ export const useDateField = ({
 
       // 左右キーでセクションを移動する
       // TODO: Tab and Tab + Command
-      // ブラウザ間の差分吸収がめんどくさいので一旦保留
+      // ブラウザやOSでの差分吸収がめんどくさいので一旦保留
       if (
         event.key === AllowedKeys.ArrowLeft ||
         event.key === AllowedKeys.ArrowRight
@@ -121,7 +120,7 @@ export const useDateField = ({
       // 上下キーで値を増減する
       // MEMO: 2020年00月01日 のような表記は
       // https://day.js.org/docs/en/plugin/custom-parse-format
-      // の挙動が怪しいので一旦対応しない
+      // の挙動が怪しいので一旦対応しない（現時点だとランタイムエラーになる）
       // e.g.) 2020-00-01 -> 2020-01-01 になる
       // 本来の dayjs の挙動としては 2019-12-01 になるべき
       if (
@@ -130,9 +129,16 @@ export const useDateField = ({
       ) {
         event.preventDefault();
         const i = event.key === AllowedKeys.ArrowUp ? 1 : -1;
-        const newValue = String(
-          Number(sections[placement.current].value) + i
-        ).padStart(sections[placement.current].value.length, "0");
+        const newValueNumber = Number(sections[placement.current].value) + i;
+
+        if (newValueNumber < 1) {
+          return;
+        }
+
+        const newValue = String(newValueNumber).padStart(
+          sections[placement.current].value.length,
+          "0"
+        );
 
         sections[placement.current].value = newValue;
 
@@ -206,6 +212,8 @@ export const useDateField = ({
     setCurrent();
   }, [setCurrent]);
 
+  // 日付をコピペした時の挙動
+  // どのセクションにフォーカスしていてもペーストした日付がすべてのセクションに適用される
   const onPaste = useCallback(
     (event: React.ClipboardEvent<HTMLInputElement>) => {
       event.preventDefault();
@@ -229,8 +237,6 @@ export const useDateField = ({
       sections[placement.current].start,
       sections[placement.current].end + 1
     );
-    // セクションを移動したら keydown をリセットする
-    setKeyDownCount(0);
   }, [placement, sections]);
 
   // MEMO: playground のデバッグ用、後で消す
