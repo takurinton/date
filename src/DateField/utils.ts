@@ -28,10 +28,12 @@ export const getSections = (formattedDate: string) => {
 
   for (let index = 1; index <= formattedDate.length; index++) {
     const currentChar = formattedDate[index];
-    const isCurrentCharDigit = !isNaN(Number(currentChar));
+    const isCurrentCharDigit =
+      !isNaN(Number(currentChar)) && currentChar !== " ";
 
     if (
       isCurrentCharDigit !== isPrevCharDigit ||
+      currentChar === " " ||
       index === formattedDate.length
     ) {
       sections.push({
