@@ -4,7 +4,7 @@ import { Input } from "ingred-ui";
 import { useDateField } from "./useDateField";
 import { useMergeRefs } from "./utils";
 
-type Props = {
+export type Props = {
   date: Dayjs;
   format?: string;
   onDateChange?: (date: Dayjs) => void;
@@ -17,5 +17,5 @@ export const DateField = forwardRef<HTMLInputElement, Props>(function DateField(
   const { ref: inputRef, ...rest } = useDateField(props);
   const ref = useMergeRefs<HTMLInputElement>(propRef, inputRef);
 
-  return <Input ref={ref} {...rest} />;
+  return <Input readOnly ref={ref} {...rest} />;
 });

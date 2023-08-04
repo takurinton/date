@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dayjs, { Dayjs } from "dayjs";
-import { getSections } from "./utils";
-import { AllowedKeys, allowedKeys, numberKeys } from "./constants";
+import {
+  getSections,
+  sectionsWithCharactorToFormattedString,
+  sectionsWithCharactorToSections,
+} from "./utils";
+import { AllowedKeys, allowedKeys, numberKeys } from "../DateField/constants";
 
-// https://day.js.org/docs/en/plugin/custom-parse-format
-import customParseFormat from "dayjs/plugin/customParseFormat";
+// CustomParseFormat の clone
+import customParseFormat from "./plugin";
 
 type Props = {
   date: Dayjs;
@@ -17,24 +21,19 @@ type Props = {
  * 左右キーでセクション移動、上下キーで選択中のセクションの値を増減する
  * 直接キーボード入力することもできる
  *
- * @todo リファクタする、特に sections の扱いと状態管理
  */
 export const useDateField = ({
   date,
   format = "YYYY-MM-DD",
   onDateChange,
 }: Props) => {
-  // dayjs では 00-00-2020 のようなことをすると invalid date になる
-  // dayjs() の第二引数のフォーマットを指定するとそれに沿ってパースしてくれるプラグイン
   dayjs.extend(customParseFormat);
 
   const ref = useRef<HTMLInputElement>(null);
+  // const value = useMemo(() => date.format(format), [date, format]);
   const [value, setValue] = useState(date.format(format));
-  const sectionsWithCharactor = useMemo(() => getSections(value), [value]);
-  const sections = useMemo(
-    () => sectionsWithCharactor.filter((section) => section.editable),
-    [sectionsWithCharactor]
-  );
+  const sectionsWithCharactor = useMemo(() => getSections(value), [value]); // フォーマット付きで日付を分割したもの
+  const sections = sectionsWithCharactorToSections(sectionsWithCharactor); // 編集可能なセクションのみを抽出したもの
   const [placement, setPlacement] = useState({
     start: 0,
     end: sections.length - 1,
@@ -53,7 +52,6 @@ export const useDateField = ({
       const currentSectionIndex = sections.findIndex(
         (section) =>
           currentFocusIndex >= section.start &&
-          // +1 しておかないとインデックスの整合性が取れない
           currentFocusIndex <= section.end + 1
       );
 
@@ -117,12 +115,7 @@ export const useDateField = ({
         });
       }
 
-      // 上下キーで値を増減する
-      // MEMO: 2020年00月01日 のような表記は
-      // https://day.js.org/docs/en/plugin/custom-parse-format
-      // の挙動が怪しいので一旦対応しない（現時点だとランタイムエラーになる）
-      // e.g.) 2020-00-01 -> 2020-01-01 になる
-      // 本来の dayjs の挙動としては 2019-12-01 になるべき
+      // 上下キーでインクリメント・デクリメントする
       if (
         event.key === AllowedKeys.ArrowUp ||
         event.key === AllowedKeys.ArrowDown
@@ -131,10 +124,6 @@ export const useDateField = ({
         const i = event.key === AllowedKeys.ArrowUp ? 1 : -1;
         const newValueNumber = Number(sections[placement.current].value) + i;
 
-        if (newValueNumber < 1) {
-          return;
-        }
-
         const newValue = String(newValueNumber).padStart(
           sections[placement.current].value.length,
           "0"
@@ -142,13 +131,14 @@ export const useDateField = ({
 
         sections[placement.current].value = newValue;
 
-        const newDate = dayjs(
-          sectionsWithCharactor.map((section) => section.value).join(""),
-          format
-        );
+        const v = sectionsWithCharactorToFormattedString(sectionsWithCharactor);
+        const newDate = dayjs(v, format);
 
         setValue(newDate.format(format));
-        onDateChange && onDateChange(newDate);
+
+        if (newDate.isValid()) {
+          onDateChange && onDateChange(newDate);
+        }
       }
 
       // 数字を直接入力した時の挙動
@@ -182,25 +172,28 @@ export const useDateField = ({
           //   }));
           // }
 
-          const v = sectionsWithCharactor
-            .map((section) => section.value)
-            .join("");
-          const newDate = dayjs(v, format);
+          const v = sectionsWithCharactorToFormattedString(
+            sectionsWithCharactor
+          );
 
-          if (!newDate.isValid()) {
-            console.error("invalid date");
-            return;
-          }
+          const newDate = dayjs(v, format);
 
           setValue(newDate.format(format));
           onDateChange && onDateChange(newDate);
         } else {
-          // 日付の更新
-          const v = sectionsWithCharactor
-            .map((section) => section.value)
-            .join("");
-          setValue(v);
-          onDateChange && onDateChange(dayjs(v, format));
+          const v = sectionsWithCharactorToFormattedString(
+            sectionsWithCharactor
+          );
+
+          if (!dayjs(v, format, true).isValid()) {
+            setValue(v);
+            return;
+          }
+
+          const newDate = dayjs(v, format);
+
+          setValue(newDate.format(format));
+          onDateChange && onDateChange(newDate);
         }
       }
     },
@@ -221,17 +214,12 @@ export const useDateField = ({
       const pastedText = event.clipboardData.getData("text");
       const newDate = dayjs(pastedText);
 
-      if (!newDate.isValid()) {
-        console.error("invalid date");
-        return;
-      }
-
-      setValue(newDate.format(format));
       onDateChange && onDateChange(newDate);
     },
-    [format, onDateChange]
+    [onDateChange]
   );
 
+  // input をクリックしたときにカーソルを正しい位置に移動する
   useEffect(() => {
     ref.current?.setSelectionRange(
       sections[placement.current].start,
@@ -239,11 +227,10 @@ export const useDateField = ({
     );
   }, [placement, sections]);
 
-  // MEMO: playground のデバッグ用、後で消す
+  // 日付が変更されたら input の値を更新する
   useEffect(() => {
     setValue(date.format(format));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [format]);
+  }, [date, format]);
 
   return {
     ref,
