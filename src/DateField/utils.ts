@@ -51,18 +51,10 @@ export const getSections = (formattedDate: string) => {
 };
 
 /**
- * 開始位置と終了位置と値を持つセクションから編集可能なセクションのみを抽出する
- */
-export const sectionsWithCharactorToSections = (
-  sectionsWithCharactor: Sections[]
-) => sectionsWithCharactor.filter((section) => section.editable);
-
-/**
  * 開始位置と終了位置と値を持つセクションをフォーマットされた日付に変換する
  */
-export const sectionsWithCharactorToFormattedString = (
-  sectionsWithCharactor: Sections[]
-) => sectionsWithCharactor.map((section) => section.value).join("");
+export const formatString = (sectionsWithCharactor: Sections[]) =>
+  sectionsWithCharactor.map((section) => section.value).join("");
 
 type ReactRef<T> =
   | React.RefCallback<T>

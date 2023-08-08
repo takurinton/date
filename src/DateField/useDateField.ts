@@ -1,10 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dayjs, { Dayjs } from "dayjs";
-import {
-  getSections,
-  sectionsWithCharactorToFormattedString,
-  sectionsWithCharactorToSections,
-} from "./utils";
+import { getSections, formatString } from "./utils";
 import { AllowedKeys, allowedKeys, numberKeys } from "../DateField/constants";
 
 // CustomParseFormat の clone
@@ -30,10 +26,8 @@ export const useDateField = ({
   dayjs.extend(customParseFormat);
 
   const ref = useRef<HTMLInputElement>(null);
-  // const value = useMemo(() => date.format(format), [date, format]);
   const [value, setValue] = useState(date.format(format));
-  const sectionsWithCharactor = useMemo(() => getSections(value), [value]); // フォーマット付きで日付を分割したもの
-  const sections = sectionsWithCharactorToSections(sectionsWithCharactor); // 編集可能なセクションのみを抽出したもの
+  const [sections, setSections] = useState(getSections(value));
   const [placement, setPlacement] = useState({
     start: 0,
     end: sections.length - 1,
@@ -100,19 +94,31 @@ export const useDateField = ({
       ) {
         event.preventDefault();
 
-        const i = event.key === AllowedKeys.ArrowLeft ? -1 : 1;
-
-        setPlacement((prev) => {
-          const newCurrentIndex = prev.current + i;
-          if (newCurrentIndex < 0 || newCurrentIndex >= sections.length) {
-            return prev;
+        const getIndex = (key: AllowedKeys) => {
+          const currentIndex = placement.current;
+          if (key === AllowedKeys.ArrowLeft) {
+            for (let i = currentIndex - 1; i >= 0; i--) {
+              if (sections[i].editable) {
+                return i - currentIndex;
+              }
+            }
+          } else if (key === AllowedKeys.ArrowRight) {
+            for (let i = currentIndex + 1; i < sections.length; i++) {
+              if (sections[i].editable) {
+                return i - currentIndex;
+              }
+            }
           }
 
-          return {
-            ...prev,
-            current: newCurrentIndex,
-          };
-        });
+          return 0;
+        };
+
+        const key = event.key;
+
+        setPlacement((prev) => ({
+          ...prev,
+          current: prev.current + getIndex(key),
+        }));
       }
 
       // 上下キーでインクリメント・デクリメントする
@@ -129,9 +135,12 @@ export const useDateField = ({
           "0"
         );
 
-        sections[placement.current].value = newValue;
+        const newSections = [...sections];
+        newSections[placement.current].value = newValue;
 
-        const v = sectionsWithCharactorToFormattedString(sectionsWithCharactor);
+        setSections(newSections);
+
+        const v = formatString(newSections);
         const newDate = dayjs(v, format);
 
         setValue(newDate.format(format));
@@ -155,7 +164,11 @@ export const useDateField = ({
         const newValue = `${sections[placement.current].value.slice(1)}${
           event.key
         }`;
-        sections[placement.current].value = newValue;
+
+        const newSections = [...sections];
+        newSections[placement.current].value = newValue;
+
+        setSections(newSections);
 
         setKeyDownCount(keyDownCount + 1);
 
@@ -172,18 +185,14 @@ export const useDateField = ({
           //   }));
           // }
 
-          const v = sectionsWithCharactorToFormattedString(
-            sectionsWithCharactor
-          );
+          const v = formatString(sections);
 
           const newDate = dayjs(v, format);
 
           setValue(newDate.format(format));
           onDateChange && onDateChange(newDate);
         } else {
-          const v = sectionsWithCharactorToFormattedString(
-            sectionsWithCharactor
-          );
+          const v = formatString(sections);
 
           if (!dayjs(v, format, true).isValid()) {
             setValue(v);
@@ -227,9 +236,10 @@ export const useDateField = ({
     );
   }, [placement, sections]);
 
-  // 日付が変更されたら input の値を更新する
+  // 日付が変更されたら input と sections を更新する
   useEffect(() => {
     setValue(date.format(format));
+    setSections(getSections(date.format(format)));
   }, [date, format]);
 
   return {
