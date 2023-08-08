@@ -25,7 +25,7 @@ function offsetFromString(string) {
   if (string === "Z") return 0;
   const parts = string.match(/([+-]|\d\d)/g);
   const minutes = +(parts[1] * 60) + (+parts[2] || 0);
-  return minutes === 0 ? 0 : parts[0] === "+" ? -minutes : minutes; // eslint-disable-line no-nested-ternary
+  return minutes === 0 ? 0 : parts[0] === "+" ? -minutes : minutes;  
 }
 
 const addInput = function (property) {
@@ -269,7 +269,7 @@ export default (o, C, d) => {
       if (pl && pl !== true) this.$L = this.locale(pl).$L;
       // use != to treat
       // input number 1410715640579 and format string '1410715640579' equal
-      // eslint-disable-next-line eqeqeq
+       
       if (isStrict && date != this.format(format)) {
         this.$d = new Date("");
       }
